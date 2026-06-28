@@ -20,8 +20,8 @@ npm run preview
 
 1. Создайте репозиторий `ThreeJSPlanet` на GitHub.
 2. Запушьте код в ветку `master`.
-3. В настройках репозитория включите **Pages → Source: Deploy from a branch → gh-pages**.
-4. Workflow `.github/workflows/deploy.yml` соберёт проект с `base: /ThreeJSPlanet/`.
+3. В настройках репозитория включите **Settings → Pages → Source: GitHub Actions**.
+4. Workflow `.github/workflows/deploy.yml` соберёт проект и опубликует его на GitHub Pages.
 
 Если имя репозитория другое — поменяйте `SITE_BASE` в workflow и `vite.config.ts`.
 
