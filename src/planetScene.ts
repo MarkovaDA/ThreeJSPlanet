@@ -1,7 +1,10 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+import { CountryPicker } from './countryPicker'
 
 const TEXTURE_BASE = 'https://threejs.org/examples/textures/planets/'
+const SPHERE_SEGMENTS = 128
 
 export interface PlanetSceneOptions {
   canvas: HTMLCanvasElement
@@ -49,10 +52,12 @@ export class PlanetScene {
   private readonly scene: THREE.Scene
   private readonly camera: THREE.PerspectiveCamera
   private readonly renderer: THREE.WebGLRenderer
+  private readonly labelRenderer: CSS2DRenderer
   private readonly controls: OrbitControls
   private readonly earth: THREE.Mesh
   private readonly clouds: THREE.Mesh
   private readonly starfield: Starfield
+  private readonly countryPicker: CountryPicker
   private readonly textures: THREE.Texture[]
 
   private autoRotate = false
@@ -73,7 +78,11 @@ export class PlanetScene {
       alpha: false,
     })
     this.renderer.setClearColor(0x020617, 1)
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 3))
+
+    this.labelRenderer = new CSS2DRenderer()
+    this.labelRenderer.domElement.className = 'country-labels-layer'
+    canvas.parentElement?.appendChild(this.labelRenderer.domElement)
 
     this.controls = new OrbitControls(this.camera, canvas)
     this.controls.enableDamping = true
@@ -90,6 +99,9 @@ export class PlanetScene {
     this.clouds = clouds
     this.scene.add(this.earth, this.clouds)
 
+    this.countryPicker = new CountryPicker(this.earth)
+    void this.loadCountries()
+
     this.setupLights()
     this.resize()
     window.addEventListener('resize', this.handleResize)
@@ -104,17 +116,31 @@ export class PlanetScene {
     this.rotationSpeed = value
   }
 
+  setShowCountries(value: boolean): void {
+    this.countryPicker.setShowAllCountries(value)
+  }
+
   dispose(): void {
     window.cancelAnimationFrame(this.frameId)
     window.removeEventListener('resize', this.handleResize)
+    this.countryPicker.dispose()
     this.controls.dispose()
     this.renderer.dispose()
+    this.labelRenderer.domElement.remove()
     this.earth.geometry.dispose()
     this.clouds.geometry.dispose()
     ;(this.earth.material as THREE.Material).dispose()
     ;(this.clouds.material as THREE.Material).dispose()
     this.textures.forEach((texture) => texture.dispose())
     this.starfield.dispose()
+  }
+
+  private async loadCountries(): Promise<void> {
+    try {
+      await this.countryPicker.load()
+    } catch (error) {
+      console.error('Failed to load country borders', error)
+    }
   }
 
   private createPlanetMeshes(
@@ -134,12 +160,13 @@ export class PlanetScene {
     const cloudsMap = loader.load(`${TEXTURE_BASE}earth_clouds_1024.png`)
 
     this.textures.push(earthMap, earthNormal, earthSpecular, cloudsMap)
-    this.textures.forEach((texture) => {
-      texture.colorSpace = THREE.SRGBColorSpace
-    })
+    this.configureColorTexture(earthMap)
+    this.configureDataTexture(earthNormal)
+    this.configureDataTexture(earthSpecular)
+    this.configureColorTexture(cloudsMap)
 
     const earth = new THREE.Mesh(
-      new THREE.SphereGeometry(1, 64, 64),
+      new THREE.SphereGeometry(1, SPHERE_SEGMENTS, SPHERE_SEGMENTS),
       new THREE.MeshPhongMaterial({
         map: earthMap,
         normalMap: earthNormal,
@@ -150,7 +177,7 @@ export class PlanetScene {
     )
 
     const clouds = new THREE.Mesh(
-      new THREE.SphereGeometry(1.012, 64, 64),
+      new THREE.SphereGeometry(1.012, SPHERE_SEGMENTS, SPHERE_SEGMENTS),
       new THREE.MeshPhongMaterial({
         map: cloudsMap,
         transparent: true,
@@ -160,6 +187,23 @@ export class PlanetScene {
     )
 
     return { earth, clouds }
+  }
+
+  private configureColorTexture(texture: THREE.Texture): void {
+    texture.colorSpace = THREE.SRGBColorSpace
+    this.applySharpTextureSettings(texture)
+  }
+
+  private configureDataTexture(texture: THREE.Texture): void {
+    texture.colorSpace = THREE.NoColorSpace
+    this.applySharpTextureSettings(texture)
+  }
+
+  private applySharpTextureSettings(texture: THREE.Texture): void {
+    texture.anisotropy = this.renderer.capabilities.getMaxAnisotropy()
+    texture.minFilter = THREE.LinearMipmapLinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.generateMipmaps = true
   }
 
   private setupLights(): void {
@@ -181,6 +225,7 @@ export class PlanetScene {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height, false)
+    this.labelRenderer.setSize(width, height)
   }
 
   private animate = (): void => {
@@ -191,7 +236,9 @@ export class PlanetScene {
       this.clouds.rotation.y += this.rotationSpeed * 1.12
     }
 
+    this.countryPicker.update(this.camera)
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
+    this.labelRenderer.render(this.scene, this.camera)
   }
 }

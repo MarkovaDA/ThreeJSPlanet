@@ -9,9 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/boolean-point-in-polygon": "^7.3.5",
+    "@turf/centroid": "^7.3.5",
+    "@turf/helpers": "^7.3.5",
     "three": "^0.175.0"
   },
   "devDependencies": {
+    "@types/geojson": "^7946.0.16",
     "@types/three": "^0.175.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5"
