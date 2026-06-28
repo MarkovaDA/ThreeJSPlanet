@@ -19,7 +19,7 @@ npm run preview
 ## Деплой на GitHub Pages
 
 1. Создайте репозиторий `ThreeJSPlanet` на GitHub.
-2. Запушьте код в ветку `main`.
+2. Запушьте код в ветку `master`.
 3. В настройках репозитория включите **Pages → Source: Deploy from a branch → gh-pages**.
 4. Workflow `.github/workflows/deploy.yml` соберёт проект с `base: /ThreeJSPlanet/`.
 
