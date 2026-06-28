@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Planet — Three.js</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='%232563eb'/><ellipse cx='35' cy='40' rx='18' ry='12' fill='%2322c55e' opacity='0.9'/></svg>" />
+    <script type="module" crossorigin src="/ThreeJSPlanet/assets/index-BUYY_mef.js"></script>
+    <link rel="stylesheet" crossorigin href="/ThreeJSPlanet/assets/index-CT0wL5Mi.css">
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="canvas"></canvas>
+
+      <header class="hud">
+        <h1>3D Planet</h1>
+        <p class="hud__hint">Перетащите мышью, чтобы повернуть камеру · колесо — приблизить</p>
+      </header>
+
+      <aside class="controls" aria-label="Управление планетой">
+        <label class="controls__row">
+          <input type="checkbox" id="auto-rotate" />
+          <span>Авто-вращение</span>
+        </label>
+
+        <label class="controls__row controls__row--slider">
+          <span>Скорость</span>
+          <input type="range" id="rotation-speed" min="0" max="100" value="35" />
+        </label>
+      </aside>
+    </div>
+  </body>
+</html>
