@@ -1,4 +1,7 @@
+import bbox from '@turf/bbox'
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon'
 import centroid from '@turf/centroid'
+import { point } from '@turf/helpers'
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
@@ -7,17 +10,25 @@ import {
   colorFromCountryId,
   pushColor,
 } from './countryColors'
-import { latLngToVector3 } from './geoMath'
+import { latLngToVector3, type LatLng } from './geoMath'
 
 const COUNTRIES_URL =
   'https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson'
 
 const BORDER_RADIUS = 1.009
+const SELECTION_BORDER_RADIUS = 1.011
 const LABEL_RADIUS = 1.018
+
+export interface CountrySelection {
+  id: string
+  name: string
+  feature: Feature<Polygon | MultiPolygon>
+}
 
 export class CountryPicker {
   private readonly parent: THREE.Object3D
   private readonly layerGroup = new THREE.Group()
+  private readonly selectionGroup = new THREE.Group()
   private readonly labelObjects: CSS2DObject[] = []
 
   private countries: Feature<Polygon | MultiPolygon>[] = []
@@ -26,11 +37,13 @@ export class CountryPicker {
 
   private borders: THREE.LineSegments | null = null
   private borderMaterial: THREE.LineBasicMaterial | null = null
+  private selectionBorders: THREE.LineSegments | null = null
 
   constructor(parent: THREE.Object3D) {
     this.parent = parent
     this.layerGroup.visible = false
     this.parent.add(this.layerGroup)
+    this.parent.add(this.selectionGroup)
   }
 
   async load(): Promise<void> {
@@ -46,6 +59,66 @@ export class CountryPicker {
     )
 
     this.buildLayer()
+  }
+
+  pickCountry({ lat, lng }: LatLng): CountrySelection | null {
+    const probe = point([lng, lat])
+
+    for (const feature of this.countries) {
+      if (booleanPointInPolygon(probe, feature)) {
+        return {
+          id: this.getCountryId(feature),
+          name: this.getCountryName(feature),
+          feature,
+        }
+      }
+    }
+
+    return null
+  }
+
+  getCountryBounds(
+    feature: Feature<Polygon | MultiPolygon>,
+  ): [[number, number], [number, number]] {
+    const [minLng, minLat, maxLng, maxLat] = bbox(feature)
+    return [
+      [minLat, minLng],
+      [maxLat, maxLng],
+    ]
+  }
+
+  highlightSelection(selection: CountrySelection): void {
+    this.clearSelectionHighlight()
+
+    const color = colorFromCountryId(selection.id)
+    const borderGeometry = this.buildFeatureBorderGeometry(
+      selection.feature,
+      SELECTION_BORDER_RADIUS,
+    )
+
+    this.selectionBorders = new THREE.LineSegments(
+      borderGeometry,
+      new THREE.LineBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      }),
+    )
+
+    this.selectionGroup.add(this.selectionBorders)
+    this.selectionGroup.visible = true
+  }
+
+  clearSelectionHighlight(): void {
+    if (this.selectionBorders) {
+      this.selectionGroup.remove(this.selectionBorders)
+      this.selectionBorders.geometry.dispose()
+      ;(this.selectionBorders.material as THREE.Material).dispose()
+      this.selectionBorders = null
+    }
+
+    this.selectionGroup.visible = false
   }
 
   setShowAllCountries(show: boolean): void {
@@ -76,6 +149,8 @@ export class CountryPicker {
 
     this.borderMaterial?.dispose()
     this.borderMaterial = null
+    this.clearSelectionHighlight()
+    this.parent.remove(this.selectionGroup)
 
     this.parent.remove(this.layerGroup)
     this.countries = []
@@ -99,6 +174,38 @@ export class CountryPicker {
     this.buildLabels()
     this.built = true
     this.layerGroup.visible = this.visible
+  }
+
+  private buildFeatureBorderGeometry(
+    feature: Feature<Polygon | MultiPolygon>,
+    radius: number,
+  ): THREE.BufferGeometry {
+    const positions: number[] = []
+
+    const addRing = (ring: number[][]) => {
+      if (ring.length < 2) return
+
+      for (let i = 0; i < ring.length; i += 1) {
+        const [lngA, latA] = ring[i]
+        const [lngB, latB] = ring[(i + 1) % ring.length]
+        const a = latLngToVector3(latA, lngA, radius)
+        const b = latLngToVector3(latB, lngB, radius)
+        positions.push(a.x, a.y, a.z, b.x, b.y, b.z)
+      }
+    }
+
+    const polygons =
+      feature.geometry.type === 'Polygon'
+        ? [feature.geometry.coordinates]
+        : feature.geometry.coordinates
+
+    for (const polygon of polygons) {
+      addRing(polygon[0])
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    return geometry
   }
 
   private buildBordersGeometry(): THREE.BufferGeometry {

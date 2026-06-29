@@ -8,29 +8,39 @@
   </head>
   <body>
     <div id="app">
-      <canvas id="canvas"></canvas>
+      <div id="globe-view" class="scene-view scene-view--globe scene-view--visible">
+        <canvas id="canvas"></canvas>
 
-      <header class="hud">
-        <h1>3D Planet</h1>
-        <p class="hud__hint">Перетащите мышью, чтобы повернуть камеру · колесо — приблизить</p>
-      </header>
+        <header class="hud">
+          <h1>3D Planet</h1>
+          <p class="hud__hint">Перетащите мышью, чтобы повернуть камеру · колесо — приблизить · клик по стране — открыть карту</p>
+        </header>
 
-      <aside class="controls" aria-label="Управление планетой">
-        <label class="controls__row">
-          <input type="checkbox" id="show-countries" />
-          <span>Показать страны</span>
-        </label>
+        <aside class="controls" aria-label="Управление планетой">
+          <label class="controls__row">
+            <input type="checkbox" id="show-countries" />
+            <span>Показать страны</span>
+          </label>
 
-        <label class="controls__row">
-          <input type="checkbox" id="auto-rotate" />
-          <span>Авто-вращение</span>
-        </label>
+          <label class="controls__row">
+            <input type="checkbox" id="auto-rotate" />
+            <span>Авто-вращение</span>
+          </label>
 
-        <label class="controls__row controls__row--slider">
-          <span>Скорость</span>
-          <input type="range" id="rotation-speed" min="0" max="100" value="35" />
-        </label>
-      </aside>
+          <label class="controls__row controls__row--slider">
+            <span>Скорость</span>
+            <input type="range" id="rotation-speed" min="0" max="100" value="35" />
+          </label>
+        </aside>
+      </div>
+
+      <section id="country-map-view" class="scene-view scene-view--map country-map-view" hidden>
+        <header class="country-map-view__header">
+          <button id="back-to-globe" type="button" class="country-map-view__back">← К планете</button>
+          <h2 id="country-map-title" class="country-map-view__title">Страна</h2>
+        </header>
+        <div id="country-map" class="country-map-view__map"></div>
+      </section>
     </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
