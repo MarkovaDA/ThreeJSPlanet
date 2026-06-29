@@ -1,14 +1,18 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
-import { CountryPicker } from './countryPicker'
-
+import { CountryPicker, type CountrySelection } from './countryPicker'
+import { vector3ToLatLng } from './geoMath'
+ 
 const TEXTURE_BASE = 'https://threejs.org/examples/textures/planets/'
 const SPHERE_SEGMENTS = 128
+const CLICK_MOVE_THRESHOLD_PX = 6
+const COUNTRY_OPEN_DELAY_MS = 750
 
 export interface PlanetSceneOptions {
   canvas: HTMLCanvasElement
   onLoadProgress?: (loaded: number, total: number) => void
+  onCountryOpen?: (selection: CountrySelection) => void
 }
 
 class Starfield {
@@ -49,6 +53,7 @@ class Starfield {
 
 export class PlanetScene {
   private readonly canvas: HTMLCanvasElement
+  private readonly onCountryOpen?: (selection: CountrySelection) => void
   private readonly scene: THREE.Scene
   private readonly camera: THREE.PerspectiveCamera
   private readonly renderer: THREE.WebGLRenderer
@@ -57,15 +62,24 @@ export class PlanetScene {
   private readonly earth: THREE.Mesh
   private readonly clouds: THREE.Mesh
   private readonly starfield: Starfield
-  private readonly countryPicker: CountryPicker
+  readonly countryPicker: CountryPicker
   private readonly textures: THREE.Texture[]
+  private readonly raycaster = new THREE.Raycaster()
+  private readonly pointer = new THREE.Vector2()
+  private readonly localIntersection = new THREE.Vector3()
 
   private autoRotate = false
   private rotationSpeed = 0.0012
   private frameId = 0
+  private active = true
+  private countriesReady = false
+  private pointerDownX = 0
+  private pointerDownY = 0
+  private countryOpenTimer = 0
 
-  constructor({ canvas, onLoadProgress }: PlanetSceneOptions) {
+  constructor({ canvas, onLoadProgress, onCountryOpen }: PlanetSceneOptions) {
     this.canvas = canvas
+    this.onCountryOpen = onCountryOpen
     this.scene = new THREE.Scene()
     this.textures = []
 
@@ -103,6 +117,7 @@ export class PlanetScene {
     void this.loadCountries()
 
     this.setupLights()
+    this.bindPointerEvents()
     this.resize()
     window.addEventListener('resize', this.handleResize)
     this.animate()
@@ -120,9 +135,29 @@ export class PlanetScene {
     this.countryPicker.setShowAllCountries(value)
   }
 
+  pause(): void {
+    this.active = false
+    this.labelRenderer.domElement.style.display = 'none'
+  }
+
+  resume(): void {
+    this.active = true
+    this.labelRenderer.domElement.style.display = ''
+    this.resize()
+  }
+
+  clearPendingCountryOpen(): void {
+    window.clearTimeout(this.countryOpenTimer)
+    this.countryOpenTimer = 0
+    this.countryPicker.clearSelectionHighlight()
+  }
+
   dispose(): void {
+    this.clearPendingCountryOpen()
     window.cancelAnimationFrame(this.frameId)
     window.removeEventListener('resize', this.handleResize)
+    this.canvas.removeEventListener('pointerdown', this.handlePointerDown)
+    this.canvas.removeEventListener('pointerup', this.handlePointerUp)
     this.countryPicker.dispose()
     this.controls.dispose()
     this.renderer.dispose()
@@ -138,9 +173,54 @@ export class PlanetScene {
   private async loadCountries(): Promise<void> {
     try {
       await this.countryPicker.load()
+      this.countriesReady = true
     } catch (error) {
       console.error('Failed to load country borders', error)
     }
+  }
+
+  private bindPointerEvents(): void {
+    this.canvas.addEventListener('pointerdown', this.handlePointerDown)
+    this.canvas.addEventListener('pointerup', this.handlePointerUp)
+  }
+
+  private handlePointerDown = (event: PointerEvent): void => {
+    this.pointerDownX = event.clientX
+    this.pointerDownY = event.clientY
+  }
+
+  private handlePointerUp = (event: PointerEvent): void => {
+    if (!this.active || !this.countriesReady) return
+
+    const deltaX = event.clientX - this.pointerDownX
+    const deltaY = event.clientY - this.pointerDownY
+    if (deltaX * deltaX + deltaY * deltaY > CLICK_MOVE_THRESHOLD_PX * CLICK_MOVE_THRESHOLD_PX) {
+      return
+    }
+
+    this.openCountryAtPointer(event)
+  }
+
+  private openCountryAtPointer(event: PointerEvent): void {
+    const rect = this.canvas.getBoundingClientRect()
+    this.pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1
+    this.pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1
+
+    this.raycaster.setFromCamera(this.pointer, this.camera)
+    const hits = this.raycaster.intersectObject(this.earth, false)
+    if (hits.length === 0) return
+
+    this.localIntersection.copy(this.earth.worldToLocal(hits[0].point.clone()))
+    const latLng = vector3ToLatLng(this.localIntersection)
+    const selection = this.countryPicker.pickCountry(latLng)
+    if (!selection) return
+
+    this.countryPicker.highlightSelection(selection)
+    window.clearTimeout(this.countryOpenTimer)
+    this.countryOpenTimer = window.setTimeout(() => {
+      this.countryPicker.clearSelectionHighlight()
+      this.onCountryOpen?.(selection)
+    }, COUNTRY_OPEN_DELAY_MS)
   }
 
   private createPlanetMeshes(
@@ -230,6 +310,7 @@ export class PlanetScene {
 
   private animate = (): void => {
     this.frameId = window.requestAnimationFrame(this.animate)
+    if (!this.active) return
 
     if (this.autoRotate) {
       this.earth.rotation.y += this.rotationSpeed
