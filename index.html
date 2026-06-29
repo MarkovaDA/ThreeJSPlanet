@@ -8,7 +8,7 @@
   </head>
   <body>
     <div id="app">
-      <div id="globe-view">
+      <div id="globe-view" class="scene-view scene-view--globe scene-view--visible">
         <canvas id="canvas"></canvas>
 
         <header class="hud">
@@ -34,7 +34,7 @@
         </aside>
       </div>
 
-      <section id="country-map-view" class="country-map-view" hidden>
+      <section id="country-map-view" class="scene-view scene-view--map country-map-view" hidden>
         <header class="country-map-view__header">
           <button id="back-to-globe" type="button" class="country-map-view__back">← К планете</button>
           <h2 id="country-map-title" class="country-map-view__title">Страна</h2>

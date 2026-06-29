@@ -1,13 +1,15 @@
 import * as THREE from 'three'
+import centroid from '@turf/centroid'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { CountryPicker, type CountrySelection } from './countryPicker'
-import { vector3ToLatLng } from './geoMath'
+import { latLngToVector3, vector3ToLatLng } from './geoMath'
  
 const TEXTURE_BASE = 'https://threejs.org/examples/textures/planets/'
 const SPHERE_SEGMENTS = 128
 const CLICK_MOVE_THRESHOLD_PX = 6
 const COUNTRY_OPEN_DELAY_MS = 750
+const COUNTRY_FOCUS_DISTANCE = 1.72
 
 export interface PlanetSceneOptions {
   canvas: HTMLCanvasElement
@@ -76,6 +78,9 @@ export class PlanetScene {
   private pointerDownX = 0
   private pointerDownY = 0
   private countryOpenTimer = 0
+  private focusAnimationId = 0
+  private readonly defaultCameraPosition = new THREE.Vector3()
+  private readonly defaultControlsTarget = new THREE.Vector3()
 
   constructor({ canvas, onLoadProgress, onCountryOpen }: PlanetSceneOptions) {
     this.canvas = canvas
@@ -119,6 +124,8 @@ export class PlanetScene {
     this.setupLights()
     this.bindPointerEvents()
     this.resize()
+    this.defaultCameraPosition.copy(this.camera.position)
+    this.defaultControlsTarget.copy(this.controls.target)
     window.addEventListener('resize', this.handleResize)
     this.animate()
   }
@@ -149,11 +156,21 @@ export class PlanetScene {
   clearPendingCountryOpen(): void {
     window.clearTimeout(this.countryOpenTimer)
     this.countryOpenTimer = 0
+    this.cancelFocusAnimation()
     this.countryPicker.clearSelectionHighlight()
+  }
+
+  resetCameraView(duration = 600): void {
+    this.animateCameraTo(
+      this.defaultControlsTarget,
+      this.defaultCameraPosition,
+      duration,
+    )
   }
 
   dispose(): void {
     this.clearPendingCountryOpen()
+    this.cancelFocusAnimation()
     window.cancelAnimationFrame(this.frameId)
     window.removeEventListener('resize', this.handleResize)
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown)
@@ -216,6 +233,7 @@ export class PlanetScene {
     if (!selection) return
 
     this.countryPicker.highlightSelection(selection)
+    this.focusOnCountry(selection)
     window.clearTimeout(this.countryOpenTimer)
     this.countryOpenTimer = window.setTimeout(() => {
       this.countryPicker.clearSelectionHighlight()
@@ -321,5 +339,54 @@ export class PlanetScene {
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
     this.labelRenderer.render(this.scene, this.camera)
+  }
+
+  private focusOnCountry(selection: CountrySelection): void {
+    const center = centroid(selection.feature)
+    const [lng, lat] = center.geometry.coordinates
+    const target = latLngToVector3(lat, lng, 1)
+
+    const offset = this.camera.position.clone().sub(this.controls.target)
+    if (offset.lengthSq() === 0) {
+      offset.set(0, 0, 1)
+    }
+
+    const endPosition = target
+      .clone()
+      .add(offset.normalize().multiplyScalar(COUNTRY_FOCUS_DISTANCE))
+
+    this.animateCameraTo(target, endPosition, COUNTRY_OPEN_DELAY_MS)
+  }
+
+  private animateCameraTo(
+    target: THREE.Vector3,
+    position: THREE.Vector3,
+    duration: number,
+  ): void {
+    this.cancelFocusAnimation()
+
+    const startTarget = this.controls.target.clone()
+    const startPosition = this.camera.position.clone()
+    const startTime = performance.now()
+
+    const step = (): void => {
+      const progress = Math.min((performance.now() - startTime) / duration, 1)
+      const eased = progress * progress * (3 - 2 * progress)
+
+      this.controls.target.lerpVectors(startTarget, target, eased)
+      this.camera.position.lerpVectors(startPosition, position, eased)
+      this.controls.update()
+
+      if (progress < 1) {
+        this.focusAnimationId = window.requestAnimationFrame(step)
+      }
+    }
+
+    this.focusAnimationId = window.requestAnimationFrame(step)
+  }
+
+  private cancelFocusAnimation(): void {
+    window.cancelAnimationFrame(this.focusAnimationId)
+    this.focusAnimationId = 0
   }
 }

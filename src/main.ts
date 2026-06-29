@@ -4,6 +4,8 @@ import { CountryMapView } from './countryMapView'
 import type { CountrySelection } from './countryPicker'
 import { PlanetScene } from './planetScene'
 
+const SCENE_TRANSITION_MS = 600
+
 class App {
   private readonly globeView: HTMLElement
   private readonly canvas: HTMLCanvasElement
@@ -16,6 +18,7 @@ class App {
   private readonly backButton: HTMLButtonElement
   private readonly planetScene: PlanetScene
   private readonly countryMapView: CountryMapView
+  private isTransitioning = false
 
   constructor() {
     const globeView = document.querySelector<HTMLElement>('#globe-view')
@@ -67,20 +70,75 @@ class App {
     this.bindEvents()
     this.syncRotationSpeed()
     this.planetScene.setShowCountries(this.showCountriesInput.checked)
-    this.showGlobeView()
+    this.resetGlobeView()
   }
 
-  private showGlobeView(): void {
+  private wait(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, ms)
+    })
+  }
+
+  private resetGlobeView(): void {
     this.planetScene.clearPendingCountryOpen()
+    this.countryMapView.hide()
     this.mapViewContainer.hidden = true
+    this.mapViewContainer.classList.remove('scene-view--leaving', 'scene-view--entering', 'scene-view--visible')
     this.globeView.hidden = false
+    this.globeView.classList.remove('scene-view--leaving', 'scene-view--entering')
+    this.globeView.classList.add('scene-view--visible')
     this.planetScene.resume()
   }
 
-  private showCountryMap(): void {
+  private async showCountryMapAnimated(
+    selection: CountrySelection,
+    bounds: [[number, number], [number, number]],
+  ): Promise<void> {
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+
+    this.mapViewContainer.hidden = false
+    this.mapViewContainer.classList.remove('scene-view--leaving', 'scene-view--visible')
+    this.mapViewContainer.classList.add('scene-view--entering')
+    this.countryMapView.open(selection, bounds)
+
+    void this.mapViewContainer.offsetHeight
+
+    this.globeView.classList.add('scene-view--leaving')
+    this.mapViewContainer.classList.remove('scene-view--entering')
+    this.mapViewContainer.classList.add('scene-view--visible')
+
+    await this.wait(SCENE_TRANSITION_MS)
+
     this.planetScene.pause()
     this.globeView.hidden = true
-    this.mapViewContainer.hidden = false
+    this.globeView.classList.remove('scene-view--leaving')
+    this.isTransitioning = false
+  }
+
+  private async showGlobeViewAnimated(): Promise<void> {
+    if (this.isTransitioning) return
+    this.isTransitioning = true
+
+    this.planetScene.clearPendingCountryOpen()
+    this.globeView.hidden = false
+    this.globeView.classList.remove('scene-view--leaving', 'scene-view--visible')
+    this.globeView.classList.add('scene-view--entering')
+    this.planetScene.resume()
+    this.planetScene.resetCameraView(SCENE_TRANSITION_MS)
+
+    void this.globeView.offsetHeight
+
+    this.mapViewContainer.classList.add('scene-view--leaving')
+    this.globeView.classList.remove('scene-view--entering')
+    this.globeView.classList.add('scene-view--visible')
+
+    await this.wait(SCENE_TRANSITION_MS)
+
+    this.countryMapView.hide()
+    this.mapViewContainer.hidden = true
+    this.mapViewContainer.classList.remove('scene-view--leaving', 'scene-view--visible')
+    this.isTransitioning = false
   }
 
   private speedFromSlider(value: number): number {
@@ -93,20 +151,18 @@ class App {
     )
   }
 
-  private handleCountryOpen = (selection: CountrySelection): void => {
+  private handleCountryOpen = async (selection: CountrySelection): Promise<void> => {
     try {
       const bounds = this.planetScene.countryPicker.getCountryBounds(selection.feature)
-      this.showCountryMap()
-      this.countryMapView.open(selection, bounds)
+      await this.showCountryMapAnimated(selection, bounds)
     } catch (error) {
       console.error('Failed to open country map', error)
-      this.showGlobeView()
+      this.resetGlobeView()
     }
   }
 
   private handleBackToGlobe = (): void => {
-    this.countryMapView.hide()
-    this.showGlobeView()
+    void this.showGlobeViewAnimated()
   }
 
   private bindEvents(): void {
