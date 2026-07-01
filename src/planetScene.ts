@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import centroid from '@turf/centroid'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
+import { Airplane } from './airplane'
 import { CountryPicker, type CountrySelection } from './countryPicker'
 import { latLngToVector3, vector3ToLatLng } from './geoMath'
  
@@ -65,6 +66,7 @@ export class PlanetScene {
   private readonly clouds: THREE.Mesh
   private readonly starfield: Starfield
   readonly countryPicker: CountryPicker
+  private readonly airplane: Airplane
   private readonly textures: THREE.Texture[]
   private readonly raycaster = new THREE.Raycaster()
   private readonly pointer = new THREE.Vector2()
@@ -119,6 +121,7 @@ export class PlanetScene {
     this.scene.add(this.earth, this.clouds)
 
     this.countryPicker = new CountryPicker(this.earth)
+    this.airplane = new Airplane(this.earth)
     void this.loadCountries()
 
     this.setupLights()
@@ -140,6 +143,10 @@ export class PlanetScene {
 
   setShowCountries(value: boolean): void {
     this.countryPicker.setShowAllCountries(value)
+  }
+
+  setAirplaneEnabled(value: boolean): void {
+    this.airplane.setEnabled(value)
   }
 
   pause(): void {
@@ -176,6 +183,7 @@ export class PlanetScene {
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown)
     this.canvas.removeEventListener('pointerup', this.handlePointerUp)
     this.countryPicker.dispose()
+    this.airplane.dispose()
     this.controls.dispose()
     this.renderer.dispose()
     this.labelRenderer.domElement.remove()
@@ -336,6 +344,7 @@ export class PlanetScene {
     }
 
     this.countryPicker.update(this.camera)
+    this.airplane.update()
     this.controls.update()
     this.renderer.render(this.scene, this.camera)
     this.labelRenderer.render(this.scene, this.camera)

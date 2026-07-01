@@ -12,6 +12,7 @@ class App {
   private readonly autoRotateInput: HTMLInputElement
   private readonly rotationSpeedInput: HTMLInputElement
   private readonly showCountriesInput: HTMLInputElement
+  private readonly airplaneInput: HTMLInputElement
   private readonly mapViewContainer: HTMLElement
   private readonly mapElement: HTMLElement
   private readonly mapTitle: HTMLElement
@@ -26,6 +27,7 @@ class App {
     const autoRotateInput = document.querySelector<HTMLInputElement>('#auto-rotate')
     const rotationSpeedInput = document.querySelector<HTMLInputElement>('#rotation-speed')
     const showCountriesInput = document.querySelector<HTMLInputElement>('#show-countries')
+    const airplaneInput = document.querySelector<HTMLInputElement>('#airplane')
     const mapViewContainer = document.querySelector<HTMLElement>('#country-map-view')
     const mapElement = document.querySelector<HTMLElement>('#country-map')
     const mapTitle = document.querySelector<HTMLElement>('#country-map-title')
@@ -37,6 +39,7 @@ class App {
       !autoRotateInput ||
       !rotationSpeedInput ||
       !showCountriesInput ||
+      !airplaneInput ||
       !mapViewContainer ||
       !mapElement ||
       !mapTitle ||
@@ -50,6 +53,7 @@ class App {
     this.autoRotateInput = autoRotateInput
     this.rotationSpeedInput = rotationSpeedInput
     this.showCountriesInput = showCountriesInput
+    this.airplaneInput = airplaneInput
     this.mapViewContainer = mapViewContainer
     this.mapElement = mapElement
     this.mapTitle = mapTitle
@@ -70,6 +74,7 @@ class App {
     this.bindEvents()
     this.syncRotationSpeed()
     this.planetScene.setShowCountries(this.showCountriesInput.checked)
+    this.planetScene.setAirplaneEnabled(this.airplaneInput.checked)
     this.resetGlobeView()
   }
 
@@ -169,6 +174,7 @@ class App {
     this.autoRotateInput.addEventListener('change', this.handleAutoRotateChange)
     this.rotationSpeedInput.addEventListener('input', this.handleRotationSpeedChange)
     this.showCountriesInput.addEventListener('change', this.handleShowCountriesChange)
+    this.airplaneInput.addEventListener('change', this.handleAirplaneChange)
     window.addEventListener('resize', this.handleResize)
     window.addEventListener('beforeunload', this.handleBeforeUnload)
   }
@@ -185,6 +191,10 @@ class App {
     this.planetScene.setShowCountries(this.showCountriesInput.checked)
   }
 
+  private handleAirplaneChange = (): void => {
+    this.planetScene.setAirplaneEnabled(this.airplaneInput.checked)
+  }
+
   private handleResize = (): void => {
     this.countryMapView.resize()
   }
@@ -199,6 +209,7 @@ class App {
     this.autoRotateInput.removeEventListener('change', this.handleAutoRotateChange)
     this.rotationSpeedInput.removeEventListener('input', this.handleRotationSpeedChange)
     this.showCountriesInput.removeEventListener('change', this.handleShowCountriesChange)
+    this.airplaneInput.removeEventListener('change', this.handleAirplaneChange)
     this.countryMapView.dispose()
     this.planetScene.dispose()
   }
